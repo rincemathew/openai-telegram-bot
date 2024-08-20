@@ -10,6 +10,9 @@ const app = express();
 
 const PORT = process.env.PORT || 3000;
 
+
+const userSession = {}
+
 const token = process.env.TELEGRAM_API;
 const bot = new TelegramBot(token, { polling: true });
 
@@ -20,26 +23,33 @@ const openai = new OpenAI({
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
 
+  if(!userSession[chatId]) {
+    userSession[chatId] = []
+  }
+
+  userSession[chatId].push({ role: "user", content: msg.text })
+
   if (msg.text === "/start") {
     bot.sendMessage(
       chatId,
       "Welcome to Chatbot powered by OPENAI, Ask anything you want..."
     );
   } else if (msg.text) {
-    const openCall = await openAICall(chatId, msg.text);
+    const openCall = await openAICall(chatId);
     bot.sendMessage(chatId, openCall);
   } else {
     bot.sendMessage(chatId, "we only support text right now");
   }
 });
 
-async function openAICall(chatId, text) {
+async function openAICall(chatId) {
   try {
     const chatCompletion = await openai.chat.completions.create({
-      messages: [{ role: "user", content: text }],
+      messages: userSession[chatId],
       model: "gpt-3.5-turbo",
     });
 
+    userSession[chatId].push({ role: "assistant", content: chatCompletion.choices[0].message.content })
     return chatCompletion.choices[0].message.content;
   } catch (error) {
     console.log(error);
